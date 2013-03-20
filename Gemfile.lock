@@ -1,0 +1,28 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    coderay (1.0.9)
+    hirb (0.7.1)
+    hirb-unicode (0.0.5)
+      hirb (~> 0.5)
+      unicode-display_width (~> 0.1.1)
+    method_source (0.8.1)
+    mysql2 (0.3.11)
+    pry (0.9.12)
+      coderay (~> 1.0.5)
+      method_source (~> 0.8)
+      slop (~> 3.4)
+    ruby-plsql (0.5.0)
+    slop (3.4.4)
+    thor (0.17.0)
+    unicode-display_width (0.1.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  hirb-unicode
+  mysql2
+  pry
+  ruby-plsql
+  thor

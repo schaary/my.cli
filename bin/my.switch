@@ -1,0 +1,150 @@
+#!/usr/bin/env ruby
+
+require 'thor'
+require 'mysql2'
+require 'pry'
+require 'hirb-unicode'
+require 'ruby-plsql'
+
+include Hirb
+
+class MySwitch < Thor
+
+  desc "list [USER]","list databases of a given user"
+  def list(user)
+    connect_urz
+
+    cursor = @mysql_urz.query( "SELECT trim(m.User) as user, trim(m.Db) as db, trim(m.Host) as host " +
+                               "  FROM mysql.db m" +
+                               " WHERE m.User = '#{user}'" + 
+                               " ORDER BY Db, m.User, m.Host", symbolize_keys: true)
+    array = []
+    cursor.each { |record| array << record; }
+
+    puts Hirb::Helpers::Table.render array
+  end
+
+  desc "usernames [PREFIX]","list the usernames which starts with PREFIX"
+  def usernames(user)
+    connect_urz
+
+    cursor = @mysql_urz.query( "SELECT trim(m.Host) as host, trim(m.User) as user" +
+                               "  FROM mysql.user m" +
+                               " WHERE m.User like '#{user}%'" +
+                               " ORDER BY m.User, m.Host", symbolize_keys: true)
+    array = [] 
+    cursor.each { |record| array << record; }
+
+    puts Hirb::Helpers::Table.render array
+  end
+
+  desc "createdb","create a new database on mysql.itz"
+  method_option :user, type: :string, required: true,  aliases: "-u", desc: 'the new database user'
+  method_option :db, type: :string, required: true,  aliases: "-d", desc: 'the new database'
+  method_option :force, type: :boolean, required: false,  aliases: "-f", desc: 'use force, to create the db for an existing user'
+  def createdb
+    connect_itz
+    connect_umt
+
+    db = set_db_name(options[:db])
+    user = set_user_name(options[:user])
+
+    abort("[error] no reference user declared") if has_no_reference_user?(options[:user]) 
+    abort("[error] user already in existence, please use --force to carry on") if user_exists_on_itz?(options[:user]) && !options[:force]
+    abort("[error] database already in existence") if db_exist?(db) 
+
+    
+  end
+
+  desc "push DATABASE -u USER -p PASSWORD [--force]","dump the database DATABASE from mysql.urz => mysql.itz"
+  method_option :user, type: :string, required: true,  aliases: "-u" 
+  def push 
+    connect_itz
+
+    if user_exists_on_itz?(options[:user]) 
+      puts "existiert"
+    else
+      puts "existiert nicht"
+    end
+  end
+
+private 
+  def connect_urz
+    @mysql_urz ||= Mysql2::Client.new host: ENV.fetch('MYSQL_URZ_MYSQL_ROOT_HOST'), 
+                                    username: ENV.fetch('MYSQL_URZ_MYSQL_ROOT_USER'),
+                                    password: ENV.fetch('MYSQL_URZ_MYSQL_ROOT_PASSWORD')
+  end
+
+  def connect_itz
+    @mysql_itz ||= Mysql2::Client.new host: ENV.fetch('MYSQL_ITZ_MYSQL_ROOT_HOST'), 
+                                    username: ENV.fetch('MYSQL_ITZ_MYSQL_ROOT_USER'),
+                                    password: ENV.fetch('MYSQL_ITZ_MYSQL_ROOT_PASSWORD')
+  end
+  
+  def connect_umt
+    plsql.connection = OCI8.new ENV.fetch('UMT_USER'),
+                                ENV.fetch('UMT_PASSWORD'),
+                                ENV.fetch('UMT_SID')
+  end
+
+  def create_db(db)
+    #@mysql_itz.query("create database #{db}")
+    puts "create database #{db}"
+  end
+
+  def create_user(user, password)
+    puts "create user '#{user}'@'141.48.%' identified by '#{password}'"
+  end
+
+  def grant_long(db, user, password, range='141.48.%')
+    #@mysql_itz.query("grant all privileges on #{db}.* to #{user}@#{range} identified by '#{password}'")
+    puts "grant all privileges on #{db}.* to #{user}@'#{range}'"
+  end
+
+  def grant_short(db, user, range='141.48.%')
+    #@mysql_itz.query("grant all privileges on #{db}.* to #{user}@#{range}")
+    puts "grant all privileges on #{db}.* to #{user}@#{range}"
+  end
+
+  def user_exists_on_itz?(user)
+    cursor = @mysql_itz.query( "select count(*) as exist" +
+                               "  from mysql.user m" +
+                               " where m.User = '#{user}'", symbolize_keys: true)
+    cursor.each do |record|  
+      if record[:exist] == 1
+        return true
+      end 
+    end
+
+    return false
+  end
+  
+  def db_exist?(db)
+    cursor = @mysql_itz.query("select distinct table_schema " +
+                              "  from information_schema.tables " +
+                              " where table_schema = #{db}", symbolize_keys: true)
+    cursor.each do |record|
+      if record[:table_schema] = db
+        return true
+      end
+    end
+
+    false
+  end
+
+  def has_no_reference_user?(user)
+    nkz = plsql.functional_account_pkg.getReferenceUser(user)
+    nkz.to_s.empty?
+  end
+  
+  def set_db_name(db,user)
+    db = db.strip.downcase
+
+    return nil unless db.match(\A[a-z]+(([a-z])|[0-9]|(_){1})*([a-z]|[0-9])+\z)
+    return db if db.start_with?("#{user}_")
+    return user + "_" + db
+  end
+end
+
+MySwitch.start
+

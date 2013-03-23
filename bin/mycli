@@ -8,7 +8,7 @@ require 'ruby-plsql'
 
 include Hirb
 
-class MySwitch < Thor
+class Mycli < Thor
 
   desc "list [USER]","list databases of a given user"
   def list(user)
@@ -46,13 +46,15 @@ class MySwitch < Thor
     connect_itz
     connect_umt
 
-    db = set_db_name(options[:db])
     user = set_user_name(options[:user])
+    db = set_db_name(options[:db], user)
 
     abort("[error] no reference user declared") if has_no_reference_user?(options[:user]) 
     abort("[error] user already in existence, please use --force to carry on") if user_exists_on_itz?(options[:user]) && !options[:force]
     abort("[error] database already in existence") if db_exist?(db) 
 
+    puts "User: " + user
+    puts "DB: " + db
     
   end
 
@@ -137,14 +139,19 @@ private
     nkz.to_s.empty?
   end
   
+  def set_user_name(user)
+    return nil unless user.match(/\A(a6)([a-z]|[0-9]){3}\z/)
+    user
+  end
+
   def set_db_name(db,user)
     db = db.strip.downcase
 
-    return nil unless db.match(\A[a-z]+(([a-z])|[0-9]|(_){1})*([a-z]|[0-9])+\z)
+    return nil unless db.match(/\A[a-z]+(([a-z])|[0-9]|(_){1})*([a-z]|[0-9])+\z/)
     return db if db.start_with?("#{user}_")
     return user + "_" + db
   end
 end
 
-MySwitch.start
+Mycli.start
 
